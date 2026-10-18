@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: proof
-          image: 10.7.254.6:5000/rca-node-agent:git-af730cd65758-r2@sha256:dde674dda41eb656757d7507c68c1f78c4184e893654f42f750858919557625c
+          image: docker.io/library/python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
           imagePullPolicy: Never
           command:
             - python
