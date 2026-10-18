@@ -1,0 +1,89 @@
+{{- if .Values.platform.agentEnrollmentPreflight.enabled }}
+{{- if empty .Values.platform.config.kubernetesApiAudiences }}
+{{- fail "platform.config.kubernetesApiAudiences must list every Kubernetes API audience" }}
+{{- end }}
+{{- if has .Values.platform.agentEnrollmentPreflight.targetAudience .Values.platform.config.kubernetesApiAudiences }}
+{{- fail "platform.agentEnrollmentPreflight.targetAudience must not be a Kubernetes API audience" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-agent-enrollment-preflight" (include "cluster-infra-rca-platform.fullname" .) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "cluster-infra-rca-platform.labels" . | nindent 4 }}
+    app.kubernetes.io/component: platform
+    rca.clusterinfra.io/job-role: agent-enrollment-preflight
+  annotations:
+    argocd.argoproj.io/hook: Skip
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ int .Values.platform.agentEnrollmentPreflight.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "cluster-infra-rca-platform.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: platform
+        rca.clusterinfra.io/job-role: agent-enrollment-preflight
+        rca.clusterinfra.io/database-client: "true"
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: preflight
+          image: {{ include "cluster-infra-rca-platform.platformImage" . | quote }}
+          imagePullPolicy: {{ .Values.platform.image.pullPolicy }}
+          command:
+            - java
+          args:
+            - -Dloader.main=io.clusterinfra.rca.webconsole.maintenance.AgentEnrollmentMigrationCli
+            - -cp
+            - /app/platform.jar
+            - org.springframework.boot.loader.launch.PropertiesLauncher
+          env:
+            - name: RCA_JDBC_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cluster-infra-rca-platform.secretName" . }}
+                  key: RCA_JDBC_URL
+            - name: RCA_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cluster-infra-rca-platform.secretName" . }}
+                  key: RCA_DB_USERNAME
+            - name: RCA_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cluster-infra-rca-platform.secretName" . }}
+                  key: RCA_DB_PASSWORD
+            - name: RCA_AGENT_ENROLLMENT_MIGRATION_MODE
+              value: "audit"
+            - name: RCA_AGENT_ENROLLMENT_MIGRATION_TARGET_AUDIENCE
+              value: {{ .Values.platform.agentEnrollmentPreflight.targetAudience | quote }}
+            - name: RCA_KUBERNETES_API_AUDIENCES
+              value: {{ join "," .Values.platform.config.kubernetesApiAudiences | quote }}
+          {{- with .Values.platform.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.platform.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.platform.tmpDir.enabled }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          {{- end }}
+      {{- if .Values.platform.tmpDir.enabled }}
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.platform.tmpDir.sizeLimit }}
+      {{- end }}
+{{- end }}

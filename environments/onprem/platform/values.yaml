@@ -1,0 +1,150 @@
+fullnameOverride: rca
+imagePullSecrets:
+- name: regcred
+database:
+  enabled: false
+platform:
+  replicaCount: 2
+  image:
+    repository: 10.7.254.6:5000/rca-platform
+    tag: ''
+    digest: sha256:027e98ca59439c4398f177d48e2d017712e70728fb3327b17edb4ed8a02cb5f4
+    pullPolicy: IfNotPresent
+  secret:
+    create: false
+    existingSecret: rca-platform-runtime
+  externalSecret:
+    enabled: false
+  service:
+    type: ClusterIP
+    port: 8080
+  serviceAccount:
+    create: true
+    automountServiceAccountToken: false
+  kubernetesReviewer:
+    enabled: false
+    rbacCreate: false
+    externalCredentials: []
+  config:
+    springProfiles: production
+    publicApiBaseUrl: https://rca.lab.test
+    demoEnabled: false
+    auditEnabled: true
+    observabilityEnabled: true
+    monitoringEnabled: false
+    pipelineEnabled: true
+    llmEnabled: false
+    llmProvider: none
+    springAiChatModel: none
+    notificationEnabled: false
+    gitopsEnabled: false
+  env:
+    RCA_AGENT_NAMESPACE: rca-system
+    RCA_AGENT_IMAGE: 10.7.254.6:5000/rca-node-agent:git-af730cd65758-r2@sha256:dde674dda41eb656757d7507c68c1f78c4184e893654f42f750858919557625c
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    seccompProfile:
+      type: RuntimeDefault
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+      - ALL
+  tmpDir:
+    enabled: true
+    sizeLimit: 256Mi
+  networkPolicy:
+    enabled: true
+    ingressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: traefik
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: traefik
+          app.kubernetes.io/instance: traefik-traefik
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+          operator.prometheus.io/name: monitoring-kube-prometheus-prometheus
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: alertmanager
+          alertmanager: monitoring-kube-prometheus-alertmanager
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: monitoring
+    metricsTokenSecretName: rca-platform-runtime
+    metricsTokenSecretKey: RCA_METRICS_TOKEN
+    interval: 30s
+    scrapeTimeout: 10s
+  prometheusRule:
+    enabled: false
+  alertmanagerConfig:
+    enabled: true
+    labels:
+      release: monitoring
+    clusterId: cluster-1208fec8
+    webhookUrl: http://rca-platform.rca-system.svc.cluster.local:8080/api/webhooks/alertmanager
+    receiverName: rca-platform-observe
+    tokenSecretName: rca-platform-runtime
+    tokenSecretKey: RCA_WEBHOOK_TOKEN
+    sendResolved: true
+    groupBy:
+    - alertname
+    - cluster_id
+    - node
+    groupWait: 5s
+    groupInterval: 30s
+    repeatInterval: 4h
+    matchers:
+    - name: rca_receiver
+      matchType: '='
+      value: platform
+    - name: alertname
+      matchType: =~
+      value: RcaInfrastructure.*
+  topologySpreadConstraints:
+  - maxSkew: 1
+    minDomains: 2
+    topologyKey: kubernetes.io/hostname
+    nodeTaintsPolicy: Honor
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/component: platform
+        app.kubernetes.io/instance: rca
+backup:
+  enabled: false
+ingress:
+  platform:
+    enabled: true
+    className: traefik
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: 'true'
+    hosts:
+    - host: rca.lab.test
+      paths:
+      - path: /
+        pathType: Prefix
+    tls:
+    - secretName: rca-platform-tls
+      hosts:
+      - rca.lab.test

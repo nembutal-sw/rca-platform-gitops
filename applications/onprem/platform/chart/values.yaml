@@ -1,0 +1,359 @@
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+database:
+  enabled: true
+  type: postgresql
+  image:
+    postgresql:
+      repository: postgres
+      tag: "16-alpine"
+      pullPolicy: IfNotPresent
+    mariadb:
+      repository: mariadb
+      tag: "11.4"
+      pullPolicy: IfNotPresent
+  auth:
+    database: rca
+    username: rca
+    password: change-me
+    rootPassword: change-me-root
+  persistence:
+    enabled: true
+    size: 8Gi
+    storageClassName: ""
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 6
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext: {}
+  securityContext: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+platform:
+  replicaCount: 1
+  revisionHistoryLimit: 3
+  terminationGracePeriodSeconds: 30
+  agentEnrollmentPreflight:
+    enabled: true
+    targetAudience: cluster-infra-rca-agent-enrollment
+    backoffLimit: 0
+  serviceAccount:
+    create: true
+    name: ""
+    automountServiceAccountToken: false
+  kubernetesReviewer:
+    enabled: false
+    rbacCreate: true
+    audience: https://kubernetes.default.svc.cluster.local
+    tokenExpirationSeconds: 3600
+    tokenMountPath: /var/run/secrets/kubernetes.io/serviceaccount
+    # External cluster credentials are mounted as
+    # /var/run/secrets/cluster-infra-rca-reviewers/<name>/token.
+    externalCredentials: []
+  image:
+    repository: ghcr.io/example/cluster-infra-rca-web-console
+    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    metricsTokenSecretName: ""
+    metricsTokenSecretKey: RCA_METRICS_TOKEN
+  prometheusRule:
+    enabled: false
+    labels: {}
+    ruleLabels: {}
+    groupInterval: 30s
+    evaluationWindow: 10m
+    runbookUrl: ""
+    latency:
+      enabled: true
+      p95Seconds: 60
+      for: 10m
+      severity: warning
+    errorRate:
+      enabled: true
+      ratio: 0.10
+      minimumRequests: 5
+      for: 10m
+      severity: critical
+    usageMetadata:
+      enabled: true
+      unavailableRatio: 0.10
+      minimumRequests: 5
+      for: 15m
+      severity: warning
+    circuitBreaker:
+      enabled: true
+      lookback: 5m
+      for: 0m
+      severity: critical
+    costBudget:
+      enabled: false
+      lookback: 24h
+      maxUsd: 25
+      for: 15m
+      severity: warning
+  alertmanagerConfig:
+    enabled: false
+    labels: {}
+    clusterId: ""
+    receiverName: cluster-infra-rca
+    webhookUrl: ""
+    sendResolved: true
+    tokenSecretName: ""
+    tokenSecretKey: RCA_WEBHOOK_TOKEN
+    groupBy:
+      - alertname
+      - cluster_id
+      - node
+    groupWait: 5s
+    groupInterval: 5m
+    repeatInterval: 4h
+    matchers:
+      - name: alertname
+        matchType: =~
+        value: ClusterRcaLlm.*
+  config:
+    springProfiles: ""
+    publicApiBaseUrl: ""
+    sessionTtlHours: 12
+    opaqueTokenKeyId: legacy
+    opaqueTokenWriteVersion: v1
+    opaqueTokenRehashOnAuthentication: false
+    # Change for each key-ring rotation phase to force a rolling restart.
+    opaqueTokenKeyRingRevision: ""
+    standardRequestMaxBytes: 1048576
+    evidenceRequestMaxBytes: 10485760
+    manifestTokenTtlSeconds: 300
+    agentBootstrapTokenTtlSeconds: 1800
+    agentMtlsRequired: false
+    kubernetesApiAudiences:
+      - https://kubernetes.default.svc
+      - https://kubernetes.default.svc.cluster.local
+    agentOfflineAfterSeconds: 180
+    reviewerCredentialExpiringSeconds: 300
+    reviewerCredentialMaximumGraceSeconds: 86400
+    agentExpectedVersion: ""
+    agentMinimumSupportedVersion: "0.1.0"
+    agentProtocolVersion: "2"
+    agentMinimumSupportedProtocolVersion: "1"
+    platformVersion: "0.1.0"
+    monitoringEnabled: false
+    monitoringIntervalMs: 60000
+    observabilityEnabled: true
+    observabilityRefreshIntervalMs: 15000
+    observabilityInitialDelayMs: 5000
+    llmEnabled: false
+    llmProvider: none
+    llmModel: ""
+    springAiChatModel: none
+    llmTimeoutSeconds: 30
+    llmMaxOutputTokens: 1800
+    llmMaxAttempts: 2
+    springAiRetryMaxAttempts: 1
+    llmFailureThreshold: 3
+    llmCooldownSeconds: 60
+    llmInputCostPerMillionTokens: 0
+    llmOutputCostPerMillionTokens: 0
+    incidentCorrelationWindowMinutes: 15
+    incidentCorrelationMinimumScore: 70
+    incidentCorrelationCandidateLimit: 20
+    incidentAutoResolveEnabled: true
+    incidentInactivityMinutes: 60
+    incidentLifecycleScanIntervalMs: 60000
+    incidentLifecycleInitialDelayMs: 30000
+    incidentLifecycleBatchSize: 100
+    incidentRecurrenceLookbackHours: 168
+    topologyEnabled: true
+    topologyLookbackHours: 24
+    topologyObservationLimit: 500
+    auditEnabled: true
+    auditRetentionDays: 180
+    maintenanceEnabled: true
+    maintenanceCron: "0 17 3 * * *"
+    maintenanceBatchSize: 250
+    evidenceRetentionDays: 30
+    evidenceRequestRetentionDays: 30
+    analysisTaskRetentionDays: 30
+    realtimeEventRetentionDays: 14
+    topologyObservationRetentionDays: 30
+    reportRetentionDays: 365
+    thresholdDiskWarningPercent: 85
+    thresholdDiskCriticalPercent: 90
+    thresholdInodeWarningPercent: 85
+    thresholdInodeCriticalPercent: 90
+    thresholdMemoryCriticalPercent: 90
+    thresholdPidWarningPercent: 85
+    thresholdPidCriticalPercent: 95
+    thresholdConntrackWarningPercent: 80
+    thresholdConntrackCriticalPercent: 95
+    thresholdDiskAwaitWarningMs: 20
+    thresholdDnsLatencyWarningMs: 500
+    thresholdApiServerLatencyWarningMs: 1000
+    thresholdEtcdLatencyWarningMs: 500
+    demoEnabled: false
+    exportMaxBundleBytes: 10485760
+    exportSignatureKeyId: default
+    notificationEnabled: false
+    notificationMinimumSeverity: critical
+    notificationMaxAttempts: 2
+    notificationTimeoutSeconds: 5
+    notificationBatchSize: 10
+    notificationPollIntervalMs: 1000
+    notificationInitialDelayMs: 3000
+    notificationLeaseSeconds: 60
+    notificationRetryBaseSeconds: 5
+    notificationRetryMaxSeconds: 300
+    pipelineEnabled: true
+    pipelineBatchSize: 4
+    pipelinePollIntervalMs: 2000
+    pipelineInitialDelayMs: 3000
+    pipelineLeaseSeconds: 300
+    pipelineMaxAttempts: 5
+    pipelineRetryBaseSeconds: 5
+    pipelineRetryMaxSeconds: 300
+    gitopsEnabled: false
+    gitopsProvider: github
+    # Empty uses the GitHub/GitLab default. Gitea requires an explicit /api/v1 URL.
+    gitopsApiBaseUrl: ""
+    gitopsRepository: ""
+    gitopsBaseBranch: main
+    gitopsFilePath: ops/catalog/operational-catalog.override.json
+    gitopsTimeoutSeconds: 15
+  secret:
+    create: true
+    existingSecret: ""
+    jdbcUrl: ""
+    databaseUsername: ""
+    databasePassword: ""
+    defaultAdminUsername: ""
+    defaultAdminPassword: ""
+    webhookToken: ""
+    metricsToken: ""
+    encryptionSecret: ""
+    opaqueTokenPepper: "development-only-opaque-token-pepper"
+    # Comma-separated key-id=pepper entries. Keep this value in a Secret.
+    opaqueTokenPreviousKeys: ""
+    exportSignatureSecret: ""
+    slackWebhookUrl: ""
+    notificationWebhookUrl: ""
+    notificationWebhookToken: ""
+    gitopsToken: ""
+    gitopsWebhookSecret: ""
+    openaiApiKey: ""
+    openaiBaseUrl: ""
+    anthropicApiKey: ""
+    geminiApiKey: ""
+    ollamaBaseUrl: ""
+  externalSecret:
+    enabled: false
+    targetName: ""
+    refreshInterval: 1h
+    secretStoreRef:
+      kind: ClusterSecretStore
+      name: ""
+    data: []
+  env: {}
+  podAnnotations: {}
+  podLabels: {}
+  # Projected reviewer tokens use mode 0400; fsGroup makes them readable by the non-root Platform process.
+  podSecurityContext:
+    fsGroup: 65532
+    fsGroupChangePolicy: OnRootMismatch
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+  tmpDir:
+    enabled: true
+    sizeLimit: 256Mi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  readinessProbe:
+    path: /health/ready
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 6
+  startupProbe:
+    path: /health
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60
+  livenessProbe:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+    maxUnavailable: null
+  networkPolicy:
+    enabled: false
+    ingressFrom: []
+
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  retentionDays: 14
+  persistence:
+    size: 10Gi
+    storageClassName: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+ingress:
+  platform:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts:
+      - host: rca.example.com
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []

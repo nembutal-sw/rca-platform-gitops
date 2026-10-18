@@ -1,0 +1,13 @@
+{{- $documents := list -}}
+{{- range $document := regexSplit "(?m)^---[ \\t]*$" .Values.payload -1 -}}
+{{- if trim $document -}}
+{{- $documents = append $documents (fromYaml $document) -}}
+{{- end -}}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-yaml-review-parser
+data:
+  docs.json: |-
+    {{ $documents | toJson }}

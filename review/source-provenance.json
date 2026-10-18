@@ -1,0 +1,22 @@
+{
+  "upstream": "https://github.com/nembutal-sw/kubernetes-cluster-infra-rca-platform",
+  "auditedCommit": "af730cd657581dde532526be04b6478555351c52",
+  "candidate": "rca-deployment-2026-10-18/gitops-candidate",
+  "changedVendoredFiles": [
+    "platform/templates/platform-agent-enrollment-preflight-job.yaml"
+  ],
+  "values": [
+    {
+      "path": "environments/onprem/platform/values.yaml",
+      "sha256": "c0cd5d6140c859231cf445f88e5fb22dbb32ce64a0099c6cd9e2aae4a6294296"
+    },
+    {
+      "path": "environments/onprem/agent/values.yaml",
+      "sha256": "5eb9da6d3af2c70550421c778aa1068ef762bb492e6abe6eaf08c2b7639841d0"
+    }
+  ],
+  "pythonImageProvenanceSource": "rca-deployment-2026-10-18/agent-image-provenance.json",
+  "pythonImageRuntimeSource": "rca-deployment-2026-10-18/agent-runtime-validation.json",
+  "imageDigest": "sha256:dde674dda41eb656757d7507c68c1f78c4184e893654f42f750858919557625c",
+  "currentInfrastructureValidated": false
+}

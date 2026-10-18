@@ -1,0 +1,23 @@
+# REVIEW ONLY: existing worker-02 canary only.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: rca-agent-canary-onprem
+  namespace: argocd
+spec:
+  description: Safe agent canary resource kinds; no ClusterRole or Secret management
+  sourceRepos:
+    - ssh://git@ssh.github.com:443/nembutal-sw/rca-platform-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: rca-system
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: ConfigMap
+    - group: apps
+      kind: DaemonSet
+  orphanedResources:
+    warn: false

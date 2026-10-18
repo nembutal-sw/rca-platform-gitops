@@ -1,0 +1,26 @@
+# Track main for change detection; every manual Sync must specify a reviewed commit SHA.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rca-gitops-proof
+  namespace: argocd
+spec:
+  project: rca-gitops-test
+  source:
+    repoURL: ssh://git@ssh.github.com:443/nembutal-sw/rca-platform-gitops.git
+    targetRevision: main
+    path: applications/onprem/gitops-test
+    directory:
+      recurse: false
+      include: '{configmap.yaml,deployment.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rca-gitops-test
+  syncPolicy:
+    # No automated block: all sync operations require a separate manual action.
+    syncOptions:
+      - Prune=false
+      - Delete=false
+      - FailOnSharedResource=true
+      - Replace=false
+      - ServerSideApply=false

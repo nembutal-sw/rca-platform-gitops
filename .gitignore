@@ -1,0 +1,8 @@
+.tools/
+validation/rendered/
+*.key
+*.p12
+*.pfx
+*.kubeconfig
+**/secrets/
+**/credentials/

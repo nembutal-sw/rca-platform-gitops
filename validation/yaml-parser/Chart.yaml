@@ -1,0 +1,5 @@
+apiVersion: v2
+name: local-yaml-review-parser
+description: Local review helper, never an Argo CD application source
+version: 0.0.1
+type: application

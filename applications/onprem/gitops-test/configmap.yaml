@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rca-gitops-proof
+  namespace: rca-gitops-test
+data:
+  message: rca-gitops-proof-v1

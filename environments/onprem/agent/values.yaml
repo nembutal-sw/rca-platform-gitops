@@ -1,0 +1,47 @@
+fullnameOverride: rca-agent-canary
+namespace:
+  create: false
+  name: rca-system
+image:
+  repository: 10.7.254.6:5000/rca-node-agent
+  tag: git-af730cd65758-r2@sha256:dde674dda41eb656757d7507c68c1f78c4184e893654f42f750858919557625c
+  pullPolicy: IfNotPresent
+imagePullSecrets:
+- name: regcred
+developmentSourceBundle:
+  enabled: false
+mode: safe
+hostNetwork: false
+hostPID: false
+tolerations: []
+nodeSelector:
+  kubernetes.io/os: linux
+  kubernetes.io/hostname: k8s-worker-02
+rbac:
+  create: false
+serviceAccount:
+  create: true
+  name: rca-agent-canary
+enrollment:
+  mode: bootstrap-token
+secret:
+  create: false
+  existingSecret:
+    name: rca-agent-bootstrap
+    clusterIdKey: cluster-id
+    agentTokenKey: agent-token
+clusterId: cluster-1208fec8
+backendUrl: http://rca-platform.rca-system.svc.cluster.local:8080
+tls:
+  enabled: false
+kubernetesTopologyEnabled: false
+statePersistence:
+  enabled: false
+kernelLog:
+  readDmesg: false
+ebpf:
+  enabled: false
+  legacySysAdmin: false
+pollIntervalSeconds: 30
+maxSpoolFiles: 100
+maxSpoolBytes: 16777216

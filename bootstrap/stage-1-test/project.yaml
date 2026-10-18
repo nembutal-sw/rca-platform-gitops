@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: rca-gitops-test
+  namespace: argocd
+spec:
+  description: Isolated manual GitOps proof; no production or cluster resources
+  sourceRepos:
+    - ssh://git@ssh.github.com:443/nembutal-sw/rca-platform-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: rca-gitops-test
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ConfigMap
+    - group: apps
+      kind: Deployment
+  orphanedResources:
+    warn: false

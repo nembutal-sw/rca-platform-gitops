@@ -1,0 +1,8 @@
+--- existing-candidate/chart/templates/platform-agent-enrollment-preflight-job.yaml
++++ proposed-private-gitops/applications/onprem/platform/chart/templates/platform-agent-enrollment-preflight-job.yaml
+@@
+   annotations:
++    argocd.argoproj.io/hook: Skip
+     helm.sh/hook: pre-upgrade
+     helm.sh/hook-weight: "-20"
+     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded

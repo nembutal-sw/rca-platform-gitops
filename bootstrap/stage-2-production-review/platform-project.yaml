@@ -1,0 +1,33 @@
+# REVIEW ONLY: stage 2 follows successful isolated test and ownership approval.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: rca-platform-onprem
+  namespace: argocd
+spec:
+  description: RCA Platform resource kinds only; external DB, PVC, and Secrets excluded
+  sourceRepos:
+    - ssh://git@ssh.github.com:443/nembutal-sw/rca-platform-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: rca-system
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: Service
+    - group: apps
+      kind: Deployment
+    - group: networking.k8s.io
+      kind: NetworkPolicy
+    - group: networking.k8s.io
+      kind: Ingress
+    - group: policy
+      kind: PodDisruptionBudget
+    - group: monitoring.coreos.com
+      kind: ServiceMonitor
+    - group: monitoring.coreos.com
+      kind: AlertmanagerConfig
+  orphanedResources:
+    warn: false

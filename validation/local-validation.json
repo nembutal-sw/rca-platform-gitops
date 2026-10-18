@@ -1,0 +1,115 @@
+{
+  "reviewOnly": true,
+  "localValidationPassed": true,
+  "clusterAccessPerformed": false,
+  "helm": "v3.17.3+ge4da497",
+  "kubeVersion": "1.36.5",
+  "platformResources": [
+    "NetworkPolicy/rca-platform",
+    "PodDisruptionBudget/rca-platform",
+    "ServiceAccount/rca-platform",
+    "Service/rca-platform",
+    "Deployment/rca-platform",
+    "Ingress/rca-platform",
+    "AlertmanagerConfig/rca-webhook",
+    "ServiceMonitor/rca",
+    "Job/rca-agent-enrollment-preflight"
+  ],
+  "agentResources": [
+    "ServiceAccount/rca-agent-canary",
+    "ConfigMap/rca-agent-canary-config",
+    "DaemonSet/rca-agent-canary"
+  ],
+  "changedRenderedFields": [
+    "Job/rca-agent-enrollment-preflight metadata.annotations.argocd.argoproj.io/hook = Skip"
+  ],
+  "platformAllOtherFieldsEqualToSavedCandidate": true,
+  "agentAllFieldsEqualToSavedCandidate": true,
+  "deploymentAndDaemonSetSpecsEqualToSavedCandidate": true,
+  "vendoredChartChanges": [
+    "platform/templates/platform-agent-enrollment-preflight-job.yaml"
+  ],
+  "dbPvcSecretOrClusterScopedResourcesRendered": false,
+  "applications": [
+    {
+      "application": "rca-gitops-proof",
+      "namespace": "rca-gitops-test",
+      "project": "rca-gitops-test",
+      "allowedKinds": [
+        {
+          "group": "",
+          "kind": "ConfigMap"
+        },
+        {
+          "group": "apps",
+          "kind": "Deployment"
+        }
+      ]
+    },
+    {
+      "application": "rca-platform-onprem",
+      "namespace": "rca-system",
+      "project": "rca-platform-onprem",
+      "allowedKinds": [
+        {
+          "group": "",
+          "kind": "ServiceAccount"
+        },
+        {
+          "group": "",
+          "kind": "Service"
+        },
+        {
+          "group": "apps",
+          "kind": "Deployment"
+        },
+        {
+          "group": "networking.k8s.io",
+          "kind": "NetworkPolicy"
+        },
+        {
+          "group": "networking.k8s.io",
+          "kind": "Ingress"
+        },
+        {
+          "group": "policy",
+          "kind": "PodDisruptionBudget"
+        },
+        {
+          "group": "monitoring.coreos.com",
+          "kind": "ServiceMonitor"
+        },
+        {
+          "group": "monitoring.coreos.com",
+          "kind": "AlertmanagerConfig"
+        }
+      ]
+    },
+    {
+      "application": "rca-agent-canary-onprem",
+      "namespace": "rca-system",
+      "project": "rca-agent-canary-onprem",
+      "allowedKinds": [
+        {
+          "group": "",
+          "kind": "ServiceAccount"
+        },
+        {
+          "group": "",
+          "kind": "ConfigMap"
+        },
+        {
+          "group": "apps",
+          "kind": "DaemonSet"
+        }
+      ]
+    }
+  ],
+  "unresolved": [
+    "Private repository push and Git commit pinning are managed by the root task; not performed by this review script",
+    "Replace each reviewed Git commit placeholder before registration",
+    "Verify current image cache on worker-02 before isolated test",
+    "Argo CD Helm 4 rendering, API admission, Project and namespace RBAC validation, and live workload comparison are pending",
+    "No actual adoption or sync performed by this review task"
+  ]
+}

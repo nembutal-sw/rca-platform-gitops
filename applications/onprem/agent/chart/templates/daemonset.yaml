@@ -1,0 +1,441 @@
+{{- $mode := lower (required "mode is required" .Values.mode) -}}
+{{- if not (has $mode (list "safe" "node-diagnostics" "ebpf")) -}}
+{{- fail "mode must be one of: safe, node-diagnostics, ebpf" -}}
+{{- end -}}
+{{- $hostNetwork := and (ne $mode "safe") .Values.hostNetwork -}}
+{{- $hostPID := and (ne $mode "safe") .Values.hostPID -}}
+{{- $enrollmentMode := lower (required "enrollment.mode is required" .Values.enrollment.mode) -}}
+{{- if not (has $enrollmentMode (list "bootstrap-token" "kubernetes-token-review")) -}}
+{{- fail "enrollment.mode must be one of: bootstrap-token, kubernetes-token-review" -}}
+{{- end -}}
+{{- if eq $enrollmentMode "kubernetes-token-review" -}}
+{{- $enrollmentAudience := required "enrollment.audience is required for kubernetes-token-review" .Values.enrollment.audience -}}
+{{- if empty .Values.enrollment.kubernetesApiAudiences -}}
+{{- fail "enrollment.kubernetesApiAudiences must list every Kubernetes API audience" -}}
+{{- end -}}
+{{- if has $enrollmentAudience .Values.enrollment.kubernetesApiAudiences -}}
+{{- fail "enrollment.audience must be dedicated and must not match a Kubernetes API audience" -}}
+{{- end -}}
+{{- $_ := required "clusterId is required for kubernetes-token-review workload binding" .Values.clusterId -}}
+{{- if or (lt (int .Values.enrollment.tokenExpirationSeconds) 600) (gt (int .Values.enrollment.tokenExpirationSeconds) 86400) -}}
+{{- fail "enrollment.tokenExpirationSeconds must be between 600 and 86400" -}}
+{{- end -}}
+{{- end -}}
+{{- if or (hasKey .Values.podLabels "app.kubernetes.io/name") (hasKey .Values.podLabels "app.kubernetes.io/instance") (hasKey .Values.podLabels "cluster-infra-rca.io/cluster-id") -}}
+{{- fail "podLabels must not override reserved Agent identity labels" -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "cluster-infra-rca-agent.fullname" . }}
+  namespace: {{ include "cluster-infra-rca-agent.namespace" . }}
+  labels:
+    {{- include "cluster-infra-rca-agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cluster-infra-rca-agent.selectorLabels" . | nindent 6 }}
+      {{- if .Values.clusterId }}
+      cluster-infra-rca.io/cluster-id: {{ .Values.clusterId | quote }}
+      {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "cluster-infra-rca-agent.labels" . | nindent 8 }}
+        {{- if .Values.clusterId }}
+        cluster-infra-rca.io/cluster-id: {{ .Values.clusterId | quote }}
+        {{- end }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "cluster-infra-rca-agent.serviceAccountName" . }}
+      {{- if eq $mode "safe" }}
+      securityContext:
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      {{- end }}
+      hostNetwork: {{ $hostNetwork }}
+      hostPID: {{ $hostPID }}
+      dnsPolicy: {{ ternary .Values.dnsPolicy "ClusterFirst" $hostNetwork }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- if .Values.developmentSourceBundle.enabled }}
+      initContainers:
+        - name: unpack-agent-source
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-c"]
+          args:
+            - >-
+              import tarfile;
+              tarfile.open('/bundle/node-agent.tar.gz', 'r:gz').extractall('/work', filter='data')
+          securityContext:
+            {{- if eq $mode "safe" }}
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            {{- else }}
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: agent-source-bundle
+              mountPath: /bundle
+              readOnly: true
+            - name: agent-source
+              mountPath: /work
+      {{- end }}
+      containers:
+        - name: agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "-m", "node_agent.main"]
+          {{- if .Values.developmentSourceBundle.enabled }}
+          workingDir: /app
+          {{- end }}
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: BACKEND_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: BACKEND_URL
+            - name: AGENT_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_MODE
+            - name: AGENT_ENROLLMENT_MODE
+              value: {{ $enrollmentMode | quote }}
+            - name: CLUSTER_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.secretName" . }}
+                  key: {{ .Values.secret.existingSecret.clusterIdKey | quote }}
+            {{- if eq $enrollmentMode "bootstrap-token" }}
+            - name: AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.secretName" . }}
+                  key: {{ .Values.secret.existingSecret.agentTokenKey | quote }}
+            {{- else }}
+            - name: AGENT_IDENTITY_TOKEN_PATH
+              value: {{ .Values.enrollment.tokenPath | quote }}
+            {{- end }}
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POLL_INTERVAL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: POLL_INTERVAL_SECONDS
+            - name: HTTP_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: HTTP_TIMEOUT_SECONDS
+            - name: COMMAND_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: COMMAND_TIMEOUT_SECONDS
+            - name: RETRY_INITIAL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: RETRY_INITIAL_SECONDS
+            - name: RETRY_MAX_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: RETRY_MAX_SECONDS
+            - name: AGENT_NODE_TOKEN_ROTATION_DAYS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_NODE_TOKEN_ROTATION_DAYS
+            - name: AGENT_NODE_TOKEN_ROTATION_RETRY_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_NODE_TOKEN_ROTATION_RETRY_SECONDS
+            - name: AGENT_MAX_SPOOL_FILES
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_MAX_SPOOL_FILES
+            - name: AGENT_MAX_SPOOL_BYTES
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_MAX_SPOOL_BYTES
+            - name: KUBERNETES_API_TIMEOUT_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_API_TIMEOUT_SECONDS
+            - name: KUBERNETES_API_MAX_ATTEMPTS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_API_MAX_ATTEMPTS
+            - name: KUBERNETES_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_API_URL
+            - name: KUBERNETES_API_MAX_RESPONSE_BYTES
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_API_MAX_RESPONSE_BYTES
+            - name: KUBERNETES_API_CACHE_TTL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_API_CACHE_TTL_SECONDS
+            - name: KUBERNETES_TOPOLOGY_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_TOPOLOGY_ENABLED
+            - name: KUBERNETES_TOPOLOGY_MAX_ITEMS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: KUBERNETES_TOPOLOGY_MAX_ITEMS
+            - name: AGENT_EVIDENCE_MAX_BYTES
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_EVIDENCE_MAX_BYTES
+            - name: HOST_LOG_MAX_FILES
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: HOST_LOG_MAX_FILES
+            - name: HOST_LOG_MAX_BYTES_PER_FILE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: HOST_LOG_MAX_BYTES_PER_FILE
+            - name: HOST_LOG_MAX_LINES
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: HOST_LOG_MAX_LINES
+            - name: CONTROL_PLANE_PROBE_PORTS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: CONTROL_PLANE_PROBE_PORTS
+            - name: CONTAINER_RUNTIME_SOCKET_PATHS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: CONTAINER_RUNTIME_SOCKET_PATHS
+            - name: SYSTEMD_COLLECTOR_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: SYSTEMD_COLLECTOR_MODE
+            - name: EBPF_ENABLED
+              value: {{ and (eq $mode "ebpf") .Values.ebpf.enabled | quote }}
+            - name: EBPF_EVENT_QUEUE_SIZE
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: EBPF_EVENT_QUEUE_SIZE
+            - name: EBPF_DNS_LATENCY_THRESHOLD_MS
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: EBPF_DNS_LATENCY_THRESHOLD_MS
+            - name: AGENT_STATE_DIR
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "cluster-infra-rca-agent.configMapName" . }}
+                  key: AGENT_STATE_DIR
+            {{- if .Values.tls.enabled }}
+            - name: AGENT_CA_BUNDLE
+              value: /var/run/cluster-infra-rca-tls/{{ .Values.tls.caBundleKey }}
+            - name: AGENT_CLIENT_CERT
+              value: /var/run/cluster-infra-rca-tls/{{ .Values.tls.clientCertKey }}
+            - name: AGENT_CLIENT_KEY
+              value: /var/run/cluster-infra-rca-tls/{{ .Values.tls.clientKeyKey }}
+            {{- end }}
+          securityContext:
+            {{- if eq $mode "safe" }}
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            {{- else }}
+            {{- toYaml (omit .Values.containerSecurityContext "capabilities") | nindent 12 }}
+            capabilities:
+              drop: ["ALL"]
+              {{- if or .Values.kernelLog.readDmesg (eq $mode "ebpf") }}
+              add:
+                {{- if .Values.kernelLog.readDmesg }}
+                - SYSLOG
+                {{- end }}
+                {{- if eq $mode "ebpf" }}
+                - BPF
+                - PERFMON
+                - NET_ADMIN
+                - SYS_RESOURCE
+                {{- if .Values.ebpf.legacySysAdmin }}
+                - SYS_ADMIN
+                {{- end }}
+                {{- end }}
+              {{- end }}
+            {{- end }}
+          volumeMounts:
+            {{- if .Values.developmentSourceBundle.enabled }}
+            - name: agent-source
+              mountPath: /app
+              readOnly: true
+            {{- end }}
+            {{- if ne $mode "safe" }}
+            - name: host-root
+              mountPath: /host/root
+              readOnly: true
+            - name: host-var-log
+              mountPath: /host/var/log
+              readOnly: true
+            - name: host-run
+              mountPath: /host/run
+              readOnly: true
+            - name: host-etc
+              mountPath: /host/etc
+              readOnly: true
+            - name: host-proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: host-sys
+              mountPath: /host/sys
+              readOnly: true
+            {{- if eq $mode "ebpf" }}
+            - name: host-debug
+              mountPath: /sys/kernel/debug
+            - name: host-bpf
+              mountPath: /sys/fs/bpf
+            - name: host-modules
+              mountPath: /lib/modules
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            - name: agent-state
+              mountPath: /var/lib/cluster-infra-rca-agent
+            {{- if eq $enrollmentMode "kubernetes-token-review" }}
+            - name: agent-enrollment-token
+              mountPath: {{ dir .Values.enrollment.tokenPath | quote }}
+              readOnly: true
+            {{- end }}
+            {{- if .Values.tls.enabled }}
+            - name: agent-tls
+              mountPath: /var/run/cluster-infra-rca-tls
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        {{- if .Values.developmentSourceBundle.enabled }}
+        - name: agent-source-bundle
+          configMap:
+            name: {{ required "developmentSourceBundle.configMapName is required when source bundle is enabled" .Values.developmentSourceBundle.configMapName }}
+            items:
+              - key: {{ .Values.developmentSourceBundle.key | quote }}
+                path: node-agent.tar.gz
+        - name: agent-source
+          emptyDir: {}
+        {{- end }}
+        {{- if ne $mode "safe" }}
+        - name: host-root
+          hostPath:
+            path: {{ .Values.hostPaths.root | quote }}
+        - name: host-var-log
+          hostPath:
+            path: {{ .Values.hostPaths.varLog | quote }}
+        - name: host-run
+          hostPath:
+            path: {{ .Values.hostPaths.run | quote }}
+        - name: host-etc
+          hostPath:
+            path: {{ .Values.hostPaths.etc | quote }}
+        - name: host-proc
+          hostPath:
+            path: {{ .Values.hostPaths.proc | quote }}
+        - name: host-sys
+          hostPath:
+            path: {{ .Values.hostPaths.sys | quote }}
+        {{- if eq $mode "ebpf" }}
+        - name: host-debug
+          hostPath:
+            path: {{ .Values.hostPaths.debug | quote }}
+        - name: host-bpf
+          hostPath:
+            path: {{ .Values.hostPaths.bpf | quote }}
+            type: DirectoryOrCreate
+        - name: host-modules
+          hostPath:
+            path: {{ .Values.hostPaths.modules | quote }}
+        {{- end }}
+        {{- end }}
+        - name: agent-state
+          {{- if or (eq $mode "safe") (not .Values.statePersistence.enabled) }}
+          emptyDir: {}
+          {{- else }}
+          hostPath:
+            path: {{ .Values.hostPaths.state | quote }}
+            type: DirectoryOrCreate
+          {{- end }}
+        {{- if eq $enrollmentMode "kubernetes-token-review" }}
+        - name: agent-enrollment-token
+          projected:
+            defaultMode: 0400
+            sources:
+              - serviceAccountToken:
+                  audience: {{ .Values.enrollment.audience | quote }}
+                  expirationSeconds: {{ int .Values.enrollment.tokenExpirationSeconds }}
+                  path: {{ base .Values.enrollment.tokenPath | quote }}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: agent-tls
+          secret:
+            secretName: {{ required "tls.existingSecret is required when tls.enabled=true" .Values.tls.existingSecret }}
+        {{- end }}

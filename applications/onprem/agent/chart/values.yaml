@@ -1,0 +1,139 @@
+nameOverride: ""
+fullnameOverride: ""
+
+namespace:
+  create: true
+  name: rca-system
+
+image:
+  repository: ghcr.io/example/cluster-infra-rca-agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Development-only source injection for registry-independent canary validation.
+# Keep disabled for production releases.
+developmentSourceBundle:
+  enabled: false
+  configMapName: ""
+  key: node-agent.tar.gz
+
+statePersistence:
+  enabled: true
+
+backendUrl: ""
+mode: safe
+clusterId: ""
+
+enrollment:
+  mode: bootstrap-token
+  # Dedicated audience for the Platform enrollment endpoint. It must not match
+  # any Kubernetes API audience accepted by the target cluster.
+  audience: cluster-infra-rca-agent-enrollment
+  kubernetesApiAudiences:
+    - https://kubernetes.default.svc
+    - https://kubernetes.default.svc.cluster.local
+  tokenExpirationSeconds: 3600
+  tokenPath: /var/run/secrets/cluster-infra-rca/enrollment/token
+
+secret:
+  create: false
+  clusterId: ""
+  agentToken: ""
+  existingSecret:
+    name: cluster-infra-rca-agent
+    clusterIdKey: cluster-id
+    agentTokenKey: agent-token
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: ""
+
+pollIntervalSeconds: 15
+httpTimeoutSeconds: 10
+commandTimeoutSeconds: 5
+retryInitialSeconds: 2
+retryMaxSeconds: 120
+nodeTokenRotationDays: 30
+nodeTokenRotationRetrySeconds: 3600
+maxSpoolFiles: 1000
+maxSpoolBytes: 268435456
+kubernetesApiTimeoutSeconds: 5
+kubernetesApiMaxAttempts: 2
+kubernetesApiUrl: ""
+kubernetesApiMaxResponseBytes: 8388608
+kubernetesApiCacheTtlSeconds: 10
+kubernetesTopologyEnabled: true
+kubernetesTopologyMaxItems: 500
+evidenceMaxBytes: 8388608
+hostLogMaxFiles: 12
+hostLogMaxBytesPerFile: 262144
+hostLogMaxLines: 80
+controlPlaneProbePorts: "6443,9345"
+runtimeSocketPaths: ""
+systemdCollectorMode: file
+
+kernelLog:
+  # CAP_SYSLOG is added only in node-diagnostics/ebpf mode so dmesg can be
+  # collected on hosts with kernel.dmesg_restrict=1.
+  readDmesg: true
+
+ebpf:
+  enabled: false
+  legacySysAdmin: false
+  eventQueueSize: 1000
+  dnsLatencyThresholdMs: 1000
+
+tls:
+  enabled: false
+  existingSecret: ""
+  caBundleKey: ca.crt
+  clientCertKey: tls.crt
+  clientKeyKey: tls.key
+
+hostNetwork: true
+hostPID: true
+dnsPolicy: ClusterFirstWithHostNet
+terminationGracePeriodSeconds: 20
+
+podAnnotations: {}
+podLabels: {}
+# The Agent image and host collectors are Linux-only. Override only with a
+# separately validated Linux node label selector.
+nodeSelector:
+  kubernetes.io/os: linux
+affinity: {}
+priorityClassName: ""
+
+tolerations:
+  - operator: Exists
+
+containerSecurityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+hostPaths:
+  root: /
+  varLog: /var/log
+  run: /run
+  etc: /etc
+  proc: /proc
+  sys: /sys
+  debug: /sys/kernel/debug
+  bpf: /sys/fs/bpf
+  modules: /lib/modules
+  state: /var/lib/cluster-infra-rca-agent

@@ -1,0 +1,31 @@
+# REVIEW ONLY: compare first; first production sync needs explicit ownership approval.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rca-platform-onprem
+  namespace: argocd
+spec:
+  project: rca-platform-onprem
+  source:
+    repoURL: ssh://git@ssh.github.com:443/nembutal-sw/rca-platform-gitops.git
+    targetRevision: main
+    path: applications/onprem/platform/chart
+    helm:
+      releaseName: rca
+      valueFiles:
+        - values-production.yaml
+        - ../../../../environments/onprem/platform/values.yaml
+      kubeVersion: 1.36.5
+      ignoreMissingValueFiles: false
+      skipCrds: true
+      skipTests: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rca-system
+  syncPolicy:
+    syncOptions:
+      - Prune=false
+      - Delete=false
+      - FailOnSharedResource=true
+      - Replace=false
+      - ServerSideApply=false
