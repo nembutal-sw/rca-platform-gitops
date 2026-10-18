@@ -8,7 +8,7 @@ platform:
   image:
     repository: 10.7.254.6:5000/rca-platform
     tag: ''
-    digest: sha256:027e98ca59439c4398f177d48e2d017712e70728fb3327b17edb4ed8a02cb5f4
+    digest: sha256:ca7db1ebca0684b51a3b6ad9d366263e1c210e45c10d751004f87f0a9ed781e8
     pullPolicy: IfNotPresent
   secret:
     create: false
