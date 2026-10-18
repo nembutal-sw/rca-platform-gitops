@@ -1,0 +1,9 @@
+# Platform adoption scope approved for GitOps commit 8efe20a93373ecb65c82566331e7582f33d574ec.
+# Layer after stage1 only after reviewing the exact target Role/Binding and zero-spec-change preview.
+# This is a public configuration copy, not an automatic installation or sync instruction.
+# This expands the cache namespace allowlist; it does not trigger an Application sync.
+configs:
+  clusterCredentials:
+    onprem-rca-scoped:
+      namespaces: rca-gitops-test,rca-system
+      clusterResources: false

@@ -1,0 +1,13 @@
+# Admin bootstrap after CRDs, before starting Argo CD. Keep outside workload GitOps.
+# The application Projects prepared in gitops-work separately allow only their exact repo/namespace/kinds.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: default
+  namespace: argocd
+spec:
+  description: Default project is intentionally closed; use the reviewed RCA projects.
+  sourceRepos: []
+  destinations: []
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist: []

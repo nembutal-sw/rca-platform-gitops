@@ -1,0 +1,109 @@
+# Apply only at the separately reviewed Platform adoption step, never at initial installation.
+# Exact commit 8efe20a93373ecb65c82566331e7582f33d574ec received metadata-adoption approval.
+# Future use still requires the current target inventory and zero-spec-change review.
+# Updates are limited to exact existing platform names; no create/delete.
+# No Secret/PVC/StatefulSet/Job/Pod writes, agent writes, RBAC, or cluster rights.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-rca-platform-controller
+  namespace: rca-system
+rules:
+  - apiGroups: [""]
+    resources: [services, serviceaccounts]
+    resourceNames: [rca-platform]
+    verbs: [get, update, patch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [rca-platform]
+    verbs: [get, update, patch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    resourceNames: [rca-platform]
+    verbs: [get, update, patch]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    resourceNames: [rca-platform]
+    verbs: [get, update, patch]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [servicemonitors]
+    resourceNames: [rca]
+    verbs: [get, update, patch]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [alertmanagerconfigs]
+    resourceNames: [rca-webhook]
+    verbs: [get, update, patch]
+  # Argo may GET a skipped desired hook while comparing. It cannot run the Job.
+  - apiGroups: [batch]
+    resources: [jobs]
+    resourceNames: [rca-agent-enrollment-preflight]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [configmaps, services, serviceaccounts, pods, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets, replicasets, controllerrevisions]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [servicemonitors, alertmanagerconfigs]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-rca-platform-controller
+  namespace: rca-system
+subjects:
+  - kind: ServiceAccount
+    name: argocd-application-controller
+    namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-rca-platform-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-rca-platform-server-readonly
+  namespace: rca-system
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, services, serviceaccounts, pods, pods/log, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, daemonsets, replicasets, controllerrevisions]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch]
+  - apiGroups: [monitoring.coreos.com]
+    resources: [servicemonitors, alertmanagerconfigs]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs]
+    resourceNames: [rca-agent-enrollment-preflight]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argocd-rca-platform-server-readonly
+  namespace: rca-system
+subjects:
+  - kind: ServiceAccount
+    name: argocd-server
+    namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-rca-platform-server-readonly

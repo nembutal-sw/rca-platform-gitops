@@ -1,0 +1,206 @@
+# Reviewed new install only: official argo-cd chart 10.10.5 / Argo CD v3.5.5.
+# Namespace/CRDs/target Roles are separate admin bootstrap resources.
+# Four active Pods: requests 448Mi / 325m; limits 1056Mi / 1350m.
+# Pin to the measured worker-02 headroom; do not pull new images on worker-01.
+fullnameOverride: argocd
+createClusterRoles: false
+createAggregateRoles: false
+crds:
+  install: false
+  keep: true
+
+global:
+  image:
+    repository: quay.io/argoproj/argocd
+    tag: v3.5.5
+    imagePullPolicy: IfNotPresent
+  nodeSelector:
+    kubernetes.io/os: linux
+    kubernetes.io/hostname: k8s-worker-02
+  revisionHistoryLimit: 2
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  # Replace the chart's permissive server ingress policy with one own-namespace policy.
+  networkPolicy:
+    create: false
+    defaultDenyIngress: false
+
+configs:
+  cm:
+    url: https://localhost:18444
+    application.resourceTrackingMethod: annotation
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    application.sync.impersonation.enabled: "false"
+    users.anonymous.enabled: "false"
+    admin.enabled: "true"
+    exec.enabled: "false"
+    # Explicit local cluster Secret below constrains cache namespaces. Keep enabled:
+    # false would also hide the explicit in-cluster registration in Argo CD 3.5.5.
+    cluster.inClusterEnabled: "true"
+    resource.respectRBAC: normal
+    timeout.reconciliation: 300s
+    timeout.reconciliation.jitter: 60s
+    resource.inclusions: |
+      - apiGroups: [""]
+        kinds: [ConfigMap, Service, ServiceAccount, Pod, Event]
+        clusters: [https://kubernetes.default.svc]
+      - apiGroups: [apps]
+        kinds: [Deployment, DaemonSet, ReplicaSet, ControllerRevision]
+        clusters: [https://kubernetes.default.svc]
+      - apiGroups: [networking.k8s.io]
+        kinds: [Ingress, NetworkPolicy]
+        clusters: [https://kubernetes.default.svc]
+      - apiGroups: [policy]
+        kinds: [PodDisruptionBudget]
+        clusters: [https://kubernetes.default.svc]
+      - apiGroups: [monitoring.coreos.com]
+        kinds: [ServiceMonitor, AlertmanagerConfig]
+        clusters: [https://kubernetes.default.svc]
+  params:
+    server.insecure: "false"
+    server.disable.auth: "false"
+    application.namespaces: ""
+    controller.status.processors: "2"
+    controller.operation.processors: "1"
+    controller.kubectl.parallelism.limit: "1"
+    reposerver.parallelism.limit: "1"
+  rbac:
+    policy.default: ""
+    policy.csv: ""
+  # This registration has NO stored token/key/password. Argo CD uses its projected
+  # ServiceAccount token + in-cluster CA for this exact Kubernetes API endpoint.
+  clusterCredentials:
+    onprem-rca-scoped:
+      server: https://kubernetes.default.svc
+      namespaces: rca-gitops-test
+      clusterResources: false
+      config:
+        tlsClientConfig:
+          insecure: false
+  # The empty runtime Secret is initialized by Argo CD. Do not put an admin hash,
+  # repository deploy key, initial password, or webhook token in Helm/Git values.
+  secret:
+    createSecret: true
+    argocdServerAdminPassword: ""
+    argocdServerAdminPasswordMtime: ""
+
+controller:
+  replicas: 1
+  dynamicClusterDistribution: false
+  revisionHistoryLimit: 2
+  automountServiceAccountToken: true
+  serviceAccount:
+    create: true
+    name: argocd-application-controller
+    automountServiceAccountToken: true
+  resources:
+    requests: {cpu: 150m, memory: 192Mi}
+    limits: {cpu: 500m, memory: 384Mi}
+  metrics:
+    enabled: false
+  networkPolicy:
+    create: false
+
+server:
+  enabled: true
+  replicas: 1
+  automountServiceAccountToken: true
+  serviceAccount:
+    create: true
+    name: argocd-server
+    automountServiceAccountToken: true
+  resources:
+    requests: {cpu: 50m, memory: 96Mi}
+    limits: {cpu: 250m, memory: 192Mi}
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: false
+  ingressGrpc:
+    enabled: false
+  metrics:
+    enabled: false
+  networkPolicy:
+    create: false
+
+repoServer:
+  replicas: 1
+  automountServiceAccountToken: false
+  serviceAccount:
+    create: true
+    name: argocd-repo-server
+    automountServiceAccountToken: false
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 384Mi}
+  metrics:
+    enabled: false
+  networkPolicy:
+    create: false
+
+redis:
+  enabled: true
+  existingSecret: argocd-redis
+  image:
+    repository: ecr-public.aws.com/docker/library/redis
+    tag: 8.6.4-alpine
+  automountServiceAccountToken: false
+  serviceAccount:
+    create: true
+    name: argocd-redis
+    automountServiceAccountToken: false
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 100m, memory: 96Mi}
+  exporter:
+    enabled: false
+  metrics:
+    enabled: false
+  networkPolicy:
+    create: false
+redis-ha:
+  enabled: false
+redisSecretInit:
+  # Required precondition: securely provision argocd/argocd-redis key auth first.
+  # This removes the chart's pre-install Secret generation Job and its create-Secret Role.
+  enabled: false
+
+dex:
+  enabled: false
+notifications:
+  enabled: false
+applicationSet:
+  # Chart 10.10.5 always renders this component; enabled:false is ineffective.
+  # No Pod runs, no external/webhook ingress, and no cross-namespace role is created.
+  replicas: 0
+  allowAnyNamespace: false
+  automountServiceAccountToken: false
+  serviceAccount:
+    create: true
+    automountServiceAccountToken: false
+  resources:
+    requests: {cpu: 10m, memory: 16Mi}
+    limits: {cpu: 100m, memory: 64Mi}
+  ingress:
+    enabled: false
+  metrics:
+    enabled: false
+  networkPolicy:
+    create: false
+
+extraObjects:
+  # Private admin access is via localhost-only kubectl/SSH forwarding. Allow
+  # intra-Argo communication; do not expose Argo through Traefik or a LoadBalancer.
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-same-namespace-ingress
+      namespace: argocd
+    spec:
+      podSelector: {}
+      policyTypes: [Ingress]
+      ingress:
+        - from:
+            - podSelector: {}
