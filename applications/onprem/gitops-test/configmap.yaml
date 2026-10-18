@@ -4,4 +4,4 @@ metadata:
   name: rca-gitops-proof
   namespace: rca-gitops-test
 data:
-  message: rca-gitops-proof-v1
+  message: rca-gitops-proof-v2
