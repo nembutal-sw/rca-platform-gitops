@@ -1,5 +1,5 @@
-# Use only after confirming this exact digest is already cached on worker-02.
-# Never prevents registry authentication, credentials copying, or a new image pull.
+# Pin the public Python digest; worker cache metadata alone did not permit Never.
+# IfNotPresent may fetch public manifest metadata and reuses available image layers.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,7 +30,7 @@ spec:
       containers:
         - name: proof
           image: docker.io/library/python@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
-          imagePullPolicy: Never
+          imagePullPolicy: IfNotPresent
           command:
             - python
             - -c
