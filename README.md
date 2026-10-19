@@ -14,6 +14,7 @@ Application의 `targetRevision`은 `main`을 유지한다. PR merge 뒤 **OutOfS
 
 | 경로 | 목적 | 적용 시점 |
 | --- | --- | --- |
+| [infra/onprem](infra/onprem/README.md) | 실제 Terraform VM 구성과 Ansible Kubernetes 노드 구성 코드 | 별도 수동 구성; Argo Application 경로에 포함되지 않음 |
 | `applications/onprem/gitops-test` | ConfigMap 1개와 Restricted Deployment 1개 | 별도 `rca-gitops-test`에서 수동 검증 |
 | `applications/onprem/platform` | 기존 Helm `rca`와 동일한 Chart/배포 값 | 승인한 SHA로 metadata 채택 완료 |
 | `applications/onprem/agent` | 기존 Helm `rca-agent-canary`의 safe canary Chart/배포 값 | 별도 소유권 전환 승인 후 |
